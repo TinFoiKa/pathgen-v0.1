@@ -1,4 +1,6 @@
-# Basic Development Notes
+# Pathgen (For Developers)
+
+## Starter Development Notes
 
 In order to develop this (preferably in a VS Code environment so that troubleshooting is much easier), please ensure that the following are installed:
 
@@ -35,3 +37,16 @@ npm i vite --save-dev
 ```
 
 'gh-pages' allows for development with github pages, whilst 'vite' allows for development on your localhost
+
+alternatively, simply run
+
+``` [terminal]
+npm i
+```
+
+which will take all packages described in your package.json and install them using npm.
+
+## Basic Development Notes
+
+After you have everything you need to develop set up, it's important to go over the development flow.
+
