@@ -1,0 +1,10 @@
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  
+  // Prevent overflow and ensure full viewport coverage
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+} 
