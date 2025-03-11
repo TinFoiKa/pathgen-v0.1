@@ -2,6 +2,7 @@ import * as React from 'react';
 import Map from './components/Map/Map';
 import WaypointSidebar from './components/Sidebar/WaypointSidebar';
 import ConfigSidebar from './components/Sidebar/ConfigSidebar';
+import VelocitySidebar from './components/Sidebar/VelocitySidebar';
 import './App.scss';
 
 const App = () => {
@@ -12,6 +13,7 @@ const App = () => {
       <div>
         {/* Left sidebar for waypoint selection */}
         <WaypointSidebar />
+        <VelocitySidebar />
       </div>
       
       <div>

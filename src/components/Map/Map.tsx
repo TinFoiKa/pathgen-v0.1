@@ -39,6 +39,9 @@ const Map: React.FC<MapProps> = ({ mapImage }) => {
           ))}
         </div>
       </div>
+      <div className = "interaction-overlay">
+
+      </div>
     </div>
   );
 };
