@@ -4,17 +4,25 @@ import WaypointSidebar from './components/Sidebar/WaypointSidebar';
 import ConfigSidebar from './components/Sidebar/ConfigSidebar';
 import './App.scss';
 
-const App: React.FC = () => {
+const App = () => {
+  const [map, setMap] = React.useState("");
+
   return (
     <div className="app-container">
-      {/* Left sidebar for waypoint selection */}
-      <WaypointSidebar />
+      <div>
+        {/* Left sidebar for waypoint selection */}
+        <WaypointSidebar />
+      </div>
       
-      {/* Main map component */}
-      <Map />
+      <div>
+        {/* Main map component */}
+        <Map mapImage={map}/>
+      </div>
       
-      {/* Right sidebar for map configuration */}
-      <ConfigSidebar />
+      <div>
+        {/* Right sidebar for map configuration */}
+        <ConfigSidebar setMap = {setMap}/>
+      </div>
     </div>
   );
 };

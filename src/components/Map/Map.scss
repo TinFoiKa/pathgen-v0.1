@@ -1,5 +1,48 @@
+.map-wrapper {
+  padding: 40px;
+  position: relative;
+}
+
 .map-container {
-  flex: 1;
+  position: relative;
+  width: 600px;
+  height: 600px;
+  border: 1px solid #ccc;
+  background-color: white;
+}
+
+.map-image {
+  width: 101.5%;
+  height: 101.5%;
+  margin-left: -5px;
+  margin-top: -5px;
+  object-fit: contain;
+}
+
+.x-axis, .y-axis {
+  position: absolute;
+  color: #9e9e9e;
+  font-size: 12px;
+}
+
+.x-axis {
+  bottom: -15px;
+  left: 0;
+  width: 100%;
+  
+  .axis-label {
+    position: absolute;
+    transform: translateX(-50%);
+  }
+}
+
+.y-axis {
+  left: -25px;
+  bottom: 0;
   height: 100%;
-  background-color: #f0f0f0; // Placeholder background
-} 
+  
+  .axis-label {
+    position: absolute;
+    transform: translateY(50%);
+  }
+}
