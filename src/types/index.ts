@@ -20,3 +20,15 @@ export interface MapConfig {
   center: Coordinate;
   style?: string;
 } 
+
+// Interface for saving a work session in local storage 
+export interface Session {
+  waypoints: Waypoint[];
+  mapConfig: MapConfig;
+}
+
+// used in Select and things which use select
+export interface Option {
+  value: string;
+  label: string;
+}

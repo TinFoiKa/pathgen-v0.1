@@ -1,8 +1,10 @@
 import * as React from 'react';
 import './Sidebar.scss';
+import { Waypoint } from '../../types';
 
 interface WaypointSidebarProps {
   // Add props as needed
+  waypoints : Waypoint[];
 }
 
 const WaypointSidebar: React.FC<WaypointSidebarProps> = () => {

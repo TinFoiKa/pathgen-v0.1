@@ -10,6 +10,7 @@ const VelocitySidebar: React.FC<VelocitySidebarProps> = (props) => {
     <div className="sidebar velocity-sidebar">
       <h2>Velocity Profile</h2>
     
+      
     </div>
   );
 };
