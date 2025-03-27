@@ -1,16 +1,25 @@
 .sidebar {
-  width: 300px;
+  display: flex;
+  flex-direction: column;
+
+  width: 100%;
   padding: 20px;
   box-sizing: border-box;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: #202020;
   color: white;
-  margin: 20px;
   border-radius: 10px;
-  font-size: 14px;
 
+  // margin caring
+  margin-top: 20px;
+  margin-bottom: 20px;
+
+  font-size: 14px;
   border:#ffffff solid 1px;
+
+  overflow-y: scroll;
+  scrollbar-width:none;
 
   h2 {
     margin: 10px;
@@ -24,15 +33,26 @@
 
 .waypoint-sidebar {
   // Specific styles for waypoint sidebar
-  height:46.25%;
+  height: 60%;
+  .selected {
+    background-color: #808080;
+  }
+  p {
+    margin: 0;
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #404040;
+    transition: background-color 0.3s;
+  }
 }
 
 .velocity-sidebar {
   // Specific styles for velocity sidebar
-  height:46.25%;
+  height: 32.25%;
+  margin-top: 0px;
 
   h2 {
-    top: calc(45.9% + 19px);
+    top: calc(60% + 5px)
   }
   
 }
@@ -41,3 +61,7 @@
   // Specific styles for config sidebar
   height: 95%;
 } 
+
+.chart-container {
+  height: 90%;
+}

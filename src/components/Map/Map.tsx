@@ -1,77 +1,114 @@
 import * as React from 'react';
 import './Map.scss';
+import { usePathPlanner } from '../../contexts/PathPlannerContext';
 import { Waypoint } from '../../types';
+import useClickHandle from '../../hooks/useClickHandle';
 
 interface MapProps {
   mapImage: string;  // Just the filename, e.g. "field1.jpg"
-  newWaypoint: (coord: {x: number, y: number, isNew: boolean}) => void;
 }
 
-const Map: React.FC<MapProps> = (props) => {
+export interface MapHandle {
+  redrawMap: () => void;
+  canvasRef: React.RefObject<HTMLCanvasElement>;
+}
+
+// ------------------------------------------- //
+//  This mainly implements waypoint graphics   //
+// ------------------------------------------- //
+const Map = React.forwardRef<MapHandle, MapProps>((props, ref) => {
+  const { CustomMenu } = useClickHandle();
+  const { waypoints, selectedWaypoint, segments } = usePathPlanner();
+
   // Construct the proper public URL for the image
   const imageUrl = `maps/${props.mapImage}`;
+
+  const mapParams = {
+    pointRadius: 12.5,
+    smallRadius: 2.5,
+    selectColor: 'purple',
+    fwdColor: 'blue',
+    bwdColor: 'red',
+    pauseColor: 'orange'
+  }
 
   // Interaction Canvas
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
-  // set previous button
-  let previousButton = 0;
-
-  // React effect to ensure event listener loader
   React.useEffect(() => {
-    const canvas = canvasRef.current;
-    console.log(canvas)
+    redrawMap();
+  }, [selectedWaypoint, waypoints]);
 
-    if (canvas) {
-      // Set initial canvas size
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
+  const drawNewWaypoint = (canvas: HTMLCanvasElement, point: Waypoint) => {
+    // if not, add new waypoint
+    const ctx = canvas.getContext('2d');
+    console.log(waypoints)
 
-      // Add event listener
-      canvas.addEventListener("click", addWaypoint);
-
-      // Cleanup
-      return () => {
-        canvas.removeEventListener("click", addWaypoint);
-      };
+    // decide clr
+    let clr = 'blue';
+    switch(point.coordinate.dir) {
+      case 1: 
+        clr = mapParams.fwdColor;
+        break;
+      case -1:
+        clr = mapParams.bwdColor;
+        break;
+      default:
+        clr = mapParams.pauseColor;
+        break;
     }
-  }, [canvasRef.current])
-
-  // Interactive canvas reading functions
-  const coordinateEvent = (e: MouseEvent, canvas: HTMLCanvasElement) => {
-    previousButton = e.button;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
     
-    const isNew = e.button != previousButton
-    console.log(x, y, isNew)
-    return { x, y, isNew };
+    if (selectedWaypoint === point) {
+      clr = mapParams.selectColor
+    }
+
+    if (ctx) {
+      ctx.beginPath();
+      ctx.fillStyle = clr;
+      ctx.strokeStyle = clr;
+      ctx.globalAlpha = 0.4;
+      ctx.arc(point.coordinate.x, point.coordinate.y, mapParams.pointRadius, 0, 2 * Math.PI);
+      ctx.fill();
+    }
   }
 
-  // Handle a waypoint add event
-  const addWaypoint = (e: MouseEvent) => {
+  const drawPath = (canvas: HTMLCanvasElement) => {
+    console.log(segments)
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    segments.forEach((segment) => {
+      segment.path.forEach((coordinate) => {
+        ctx.beginPath();
+        ctx.fillStyle = `hsl(${coordinate.vel + 20}, 100%, 50%)`;
+        ctx.ellipse(coordinate.x, coordinate.y, mapParams.smallRadius, mapParams.smallRadius, 0, 0, 2 * Math.PI);
+        ctx.fill();
+      })
+    });
+  }
+  
+  // refresh the map
+  const redrawMap = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const coord = coordinateEvent(e, canvas);
-
-    // then draw the waypoint
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.beginPath();
-      ctx.fillStyle = 'blue';
-      ctx.strokeStyle = 'blue';
-      ctx.globalAlpha = 0.4;
-      ctx.arc(coord.x, coord.y, 10, 0, 2 * Math.PI);
-      ctx.fill();
-    }
-
-    // Add Waypoint
-    props.newWaypoint({x: coord.x, y: coord.y, isNew: coord.isNew});
-    console.log("Waypoint added");
-  }
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
   
+    const context = canvas.getContext('2d');
+    context?.clearRect(0, 0, canvas.width, canvas.height);
+
+    waypoints.forEach((waypoint) => {
+      drawNewWaypoint(canvas, waypoint);
+    })
+    console.log("referenced redrawMap")
+
+    // Draw the path as mini points
+    drawPath(canvas);
+  }
+
+  // pass up to parent
+  React.useImperativeHandle(ref, () => ({ redrawMap, canvasRef }))
 
   return (
     <div className="map-wrapper">
@@ -80,7 +117,9 @@ const Map: React.FC<MapProps> = (props) => {
         <canvas 
           ref = {canvasRef}
           className = "interaction-overlay" 
+          onMouseDown = {redrawMap}
         />
+
         {/* Display the map image */}
         <img 
           src={imageUrl} 
@@ -109,8 +148,12 @@ const Map: React.FC<MapProps> = (props) => {
           ))}
         </div>
       </div>
+      <div className='toolbar-container'>
+        
+      </div>
+      <CustomMenu/>
     </div>
   );
-};
+});
 
 export default Map;

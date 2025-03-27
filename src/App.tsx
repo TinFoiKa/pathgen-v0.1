@@ -1,63 +1,46 @@
 import * as React from 'react';
-import Map from './components/Map/Map';
+import Map, { MapHandle } from './components/Map/Map';
 import WaypointSidebar from './components/Sidebar/WaypointSidebar';
 import ConfigSidebar from './components/Sidebar/ConfigSidebar';
 import VelocitySidebar from './components/Sidebar/VelocitySidebar';
 import './App.scss';
-import { MapConfig, Waypoint } from './types';
+import { MapConfig } from './types';
+import { PathPlannerProvider, usePathPlanner } from './contexts/PathPlannerContext';
 
 const App : React.FC = () => {
+  const mapRef = React.useRef<MapHandle>(null);
+  
   // Global States
   const [map, setMap] = React.useState("pig.png");
-  const [waypoints, setWaypoints] = React.useState<Waypoint[]>([]);
-  const [config, setConfig] = React.useState<MapConfig>();
-
-  // abstracted function to add waypoints
-  const addWaypoint = (coord: {x: number, y: number, isNew: boolean}) => {
-    // pad with more waypoint information
-    const index = waypoints.length;
-
-    const current = waypoints.length == 0 ? 0 : waypoints[waypoints.length - 1].section
-    const section = coord.isNew ? current + 1 : current;
-
-    waypoints.push({
-      index: index,
-      section: section,
-      coordinate: {
-        x: coord.x,
-        y: coord.y,
-        head: 0,
-        vel: 0
-      }
-    });
-    console.log(waypoints)
-  }
+  const [config, setConfig] = React.useState<MapConfig>({zoom: 0, center: {x:0, y:0, head: 0, dir: 0, vel:0}});
 
   return (
-    <div className="app-container">
-      <div>
-        {/* Left sidebar for waypoint selection */}
-        <WaypointSidebar waypoints = {waypoints}/>
-        <VelocitySidebar />
+    <PathPlannerProvider mapRef = {mapRef}>
+      <div className="app-container">
+        <div className = "side">
+          {/* Left sidebar for waypoint selection */}
+          <WaypointSidebar />
+          <VelocitySidebar />
+        </div>
+        
+        <div className = "middle">
+          {/* Main map component */}
+          <Map 
+            mapImage = { map } 
+            ref = { mapRef }
+          />
+        </div>
+        
+        <div className = "side">
+          {/* Right sidebar for map configuration */}
+          <ConfigSidebar 
+            mapState = {[map, setMap]} 
+            configState = {[config, setConfig]}
+          />
+        </div>
       </div>
-      
-      <div>
-        {/* Main map component */}
-        <Map 
-          mapImage = {map} 
-          newWaypoint = {addWaypoint}
-        />
-      </div>
-      
-      <div>
-        {/* Right sidebar for map configuration */}
-        <ConfigSidebar 
-          setMap = {setMap} 
-          setConfig = {setConfig}
-        />
-      </div>
-    </div>
+    </PathPlannerProvider>
   );
 };
 
-export default App; 
+export default App;
