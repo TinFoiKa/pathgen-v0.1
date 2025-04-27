@@ -3,6 +3,8 @@ import { Waypoint, Segment } from '../types';
 import { MapHandle } from '../components/Map/Map';
 import useClickHandle from '../hooks/useClickHandle';
 import populatePath from '../pathgen/populatePath';
+import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
+import useWaypointFunctions from '../hooks/useWaypointFunctions';
 
 interface PathPlannerContextType {
   mapRef: React.RefObject<MapHandle>;
@@ -13,7 +15,7 @@ interface PathPlannerContextType {
   setWaypoints: (waypoints: Waypoint[]) => void;
   addWaypoint: (coord: {x: number, y: number, dir: number}) => void;
 
-  handleSelect: (e: MouseEvent, coord?: {x:number, y: number, dir: number}) => boolean;
+  coordinateEvent: (e: MouseEvent, canvas: HTMLCanvasElement) => {x: number, y: number, dir: number };
   selectWaypoint: (waypoint: Waypoint | null) => void;
   selectedWaypoint: Waypoint | null;
 
@@ -21,6 +23,12 @@ interface PathPlannerContextType {
   handleWaypointAdd: (e: MouseEvent) => void;
   
   clearAllWaypoints: () => void;
+
+  pauseEdit: Waypoint | null;
+  setPauseEdit: (waypoint: Waypoint | null) => void;
+
+  // Add control point management
+  updateControlPoint: (waypoint: Waypoint, isEntry: boolean, x: number, y: number) => void;
 }
 
 const PathPlannerContext = React.createContext<PathPlannerContextType | undefined>(undefined);
@@ -40,6 +48,7 @@ export const PathPlannerProvider: React.FC<PathPlannerProps> = (props) => {
   const [segments, setSegments] = React.useState<Segment[]>([]);
   const [waypoints, setWaypoints] = React.useState<Waypoint[]>([]);
   const [selectedWaypoint, setSelectedWaypoint] = React.useState<Waypoint | null>(null);
+  const [pauseEdit, setPauseEdit] = React.useState<Waypoint | null>(null);
 
   let prevDir: number;
 
@@ -56,14 +65,10 @@ export const PathPlannerProvider: React.FC<PathPlannerProps> = (props) => {
         head: null,
         vel: 0,
         dir: coord.dir
-      }
+      },
+      cp1: null,
+      cp2: null
     };
-
-    // A change in direction means a new section must be made
-    if (coord.dir != prevDir) {
-        newWaypoint.section++;
-    }
-    prevDir = coord.dir
 
     waypoints.push(newWaypoint);
 
@@ -79,7 +84,11 @@ export const PathPlannerProvider: React.FC<PathPlannerProps> = (props) => {
    * Selection function, handles selected waypoint and redraws map to reflect selection
    */
   const selectWaypoint = (waypoint: Waypoint | null) => {
+    waypoints.forEach((waypoint) => (waypoint.selected = false))
     setSelectedWaypoint(waypoint);
+    if(waypoint) {
+      waypoint.selected = true;
+    }
     mapRef.current?.redrawMap();
   };
 
@@ -123,40 +132,6 @@ export const PathPlannerProvider: React.FC<PathPlannerProps> = (props) => {
     return { x, y, dir };
   }
 
-  const handleSelect = (e: MouseEvent, coord?: {x: number, y: number, dir: number}) : boolean => {
-    if (!coord) {
-      // get our map and canvas
-      const map = props.mapRef.current
-      const canvas = map?.canvasRef.current;
-      if (!canvas) return false;
-      coord = coordinateEvent(e, canvas);
-    }
-
-    // if empty, skip selection check
-    if (waypoints.length === 0) {
-      return false;
-    }
-
-    const closest = waypoints.reduce((prev, curr) => {
-      // repeated for edge effects
-      prev.selected = false;
-      curr.selected = false;
-      
-      // then compute closest
-      const prevDist = Math.sqrt((prev.coordinate.x - coord.x) ** 2 + (prev.coordinate.y - coord.y) ** 2);
-      const currDist = Math.sqrt((curr.coordinate.x - coord.x) ** 2 + (curr.coordinate.y - coord.y) ** 2);
-      return prevDist < currDist ? prev : curr;
-    });
-    if (Math.sqrt((closest.coordinate.x - coord.x) ** 2 + (closest.coordinate.y - coord.y) ** 2) < 25) {
-      // select logic
-      console.log("Closest waypoint selected");
-      selectWaypoint(closest);
-      closest.selected = true;
-      return true;
-    } 
-    return false;
-  }
-
   // Handle a waypoint add event
   const handleWaypointAdd = (e: MouseEvent) => {
     e.preventDefault();
@@ -189,6 +164,37 @@ export const PathPlannerProvider: React.FC<PathPlannerProps> = (props) => {
     mapRef.current?.redrawMap();
   }
 
+  const updateControlPoint = (waypoint: Waypoint, isEntry: boolean, x: number, y: number) => {
+    // Calculate control point parameters relative to waypoint
+    const wpX = waypoint.coordinate.x;
+    const wpY = waypoint.coordinate.y;
+    
+    const dx = x - wpX;
+    const dy = y - wpY;
+    const magnitude = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+
+    // Initialize controlPointParams if not exists
+    if (!waypoint.controlPointParams) {
+      waypoint.controlPointParams = {};
+    }
+
+    // Update the control point parameters
+    if (isEntry) {
+      waypoint.controlPointParams.entryMagnitude = magnitude;
+      waypoint.controlPointParams.entryAngle = angle;
+    } else {
+      waypoint.controlPointParams.exitMagnitude = magnitude;
+      waypoint.controlPointParams.exitAngle = angle;
+    }
+
+    // Update the waypoints array to trigger a re-render
+    setWaypoints([...waypoints]);
+    
+    // Recalculate path
+    setSegments(populatePath(waypoints));
+  };
+
   const value = {
     mapRef,
     
@@ -198,13 +204,18 @@ export const PathPlannerProvider: React.FC<PathPlannerProps> = (props) => {
     setWaypoints,
     addWaypoint,
 
-    handleSelect,
     selectWaypoint,
     selectedWaypoint,
 
+    coordinateEvent,
+
     reloadWaypoints,
     handleWaypointAdd,
-    clearAllWaypoints
+    clearAllWaypoints,
+
+    pauseEdit,
+    setPauseEdit,
+    updateControlPoint,
   };
 
   return (

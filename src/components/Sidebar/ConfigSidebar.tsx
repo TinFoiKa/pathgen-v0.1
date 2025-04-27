@@ -3,6 +3,8 @@ import './Sidebar.scss';
 import { MapConfig } from '../../types';
 import Selection from '../Forms/Selection/Selection';
 import { usePathPlanner } from '../../contexts/PathPlannerContext';
+import TextInput from "../Forms/TextInput/TextInput"
+import exportPathPoints from '../../hooks/exportPathPoints';
 
 interface ConfigSidebarProps {
   // Add props as needed
@@ -11,7 +13,32 @@ interface ConfigSidebarProps {
 }
 
 const ConfigSidebar: React.FC<ConfigSidebarProps> = (props) => {
-  const { reloadWaypoints, clearAllWaypoints } = usePathPlanner();
+  const { reloadWaypoints, clearAllWaypoints, pauseEdit, setPauseEdit, segments, mapRef } = usePathPlanner();
+  const [pauseTime, setPauseTime] = React.useState<number | undefined>(pauseEdit?.coordinate.pausetime);
+
+  React.useEffect(() => {
+    if (pauseEdit?.coordinate.pausetime) {
+      setPauseTime(pauseEdit.coordinate.pausetime);
+    }
+  }, [pauseEdit?.coordinate.pausetime]);
+
+  React.useEffect(() => {
+    if (pauseTime !== undefined && pauseEdit) {
+      pauseEdit.coordinate.pausetime = pauseTime;
+      setPauseEdit(pauseEdit);
+    }
+  }, [pauseTime]);
+
+  // React.useEffect(() => {
+  //   pauseEdit!.coordinate.pausetime! = pauseTime as number;
+  //   setPauseEdit(pauseEdit);
+  // }, [pauseTime])
+
+  const canvasRect = mapRef.current?.canvasRef.current?.getBoundingClientRect();
+  if (!canvasRect) {
+    return;
+  }
+  const mapDimensions = {width: canvasRect!.width, height: canvasRect!.height};
 
   return (
     <div className="sidebar config-sidebar">
@@ -48,6 +75,17 @@ const ConfigSidebar: React.FC<ConfigSidebarProps> = (props) => {
       <input type = "button" value = "Clear Waypoints" onClick = {() => {
         clearAllWaypoints();
       }}/>
+      <input type="button" value = "Export to CSV" onClick = {() => {
+        exportPathPoints(segments, mapDimensions)
+      }} />
+
+      {pauseEdit && <TextInput
+        name = "Pause Time" 
+        placeholder = "time (sec)"
+        type = {"number"}
+        state = {[pauseTime, setPauseTime]}
+      />}
+
     </div>
   );
 };

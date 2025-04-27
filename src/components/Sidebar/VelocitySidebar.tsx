@@ -44,7 +44,7 @@ const VelocitySidebar: React.FC<VelocitySidebarProps> = (props) => {
       {
         label: 'Velocity',
         data: velocities, // Y-axis: Velocity values
-        borderColor: 'rgba(75, 192, 192, 1)', // Line color
+        borderColor: 'rgb(75, 192, 116)', // Line color
         backgroundColor: 'rgba(75, 192, 192, 0.2)', // Fill color under the line
         pointRadius: 0,
         borderWidth: 2,

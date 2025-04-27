@@ -4,6 +4,7 @@ import { PathPlannerProvider, usePathPlanner } from '../contexts/PathPlannerCont
 import './Menu.scss'
 import { MapHandle } from '../components/Map/Map';
 import React from 'react';
+import useWaypointFunctions from './useWaypointFunctions';
 
 interface MenuProps {
     name: string;
@@ -17,9 +18,9 @@ const useClickHandle = () => {
             mapRef, 
             handleWaypointAdd, 
             selectWaypoint, 
-            handleSelect, 
             selectedWaypoint, 
-            reloadWaypoints 
+            reloadWaypoints,
+            coordinateEvent
         } = usePathPlanner();
 
     const [rightFocused, setRightFocused] = useState(false);
@@ -32,12 +33,17 @@ const useClickHandle = () => {
         function: () => {}
     }])
 
+    const { addPause, changePause } = useWaypointFunctions();
+
     // Set options when focus updates
     useEffect(() => {
+        let options: MenuProps[]
+        setActiveSubmenu(null);
+
         if (focus?.isWaypoint) {
             // filter directionlist based on what directions we are missing.
             if (waypoints.length === 0) return;
-            const dir = waypoints[waypoints.indexOf(selectedWaypoint!)]?.coordinate.dir;
+            const dir = selectedWaypoint?.coordinate.dir;
             const directionlist = [
                 {
                     name: "Forward",
@@ -56,27 +62,31 @@ const useClickHandle = () => {
                 {
                     name: "Pause",
                     function: () => {
-                        waypoints[focus.waypointIndex!].coordinate.dir = 0;
+                        addPause();
                         setWaypoints(waypoints);
                     }
                 }
             ].filter((item) => item.name !== (dir === 1 ? "Forward" : dir === -1 ? "Backward" : "Pause"));
 
-            setOptions([
-                {
-                    name: "Delete",
-                    function: () => {
-                        waypoints.splice(focus.waypointIndex!, 1);
-                        setWaypoints(waypoints);
-                    }
-                },
-                {
-                    name: "Edit Type >",
-                    submenu: directionlist
+            options = [{
+                name: "Delete",
+                function: () => {
+                    waypoints.splice(focus.waypointIndex!, 1);
+                    setWaypoints(waypoints);
                 }
-            ])
+            },
+            {
+                name: "Edit Type >",
+                submenu: directionlist
+            }]
+
+            if (selectedWaypoint?.coordinate.dir === 0) {
+                options.push({
+                    name: "Modify Pause..."
+                })
+            }
         } else {
-            setOptions([
+            options = [
                 { 
                     name: "Add Waypoint", 
                     function: () => {
@@ -95,8 +105,10 @@ const useClickHandle = () => {
                         handleWaypointAdd(artEvent);
                     }
                 }
-            ])
+            ];
         }
+
+        setOptions(options);
     }, [focus, waypoints]);
 
     // use effect for focus based on waypoint selection
@@ -134,7 +146,82 @@ const useClickHandle = () => {
         setRightFocused(false);
     }
 
+    let prevTarget: HTMLElement;
+    /**
+     * 
+     * @param e HTML Mouse Event
+     * @returns whether a selection has been handled or not
+     */
+    const handleSelect = (e: MouseEvent) : boolean => {
+        const target = e.target as HTMLElement;
+        
+        // Handle the waypoint sidebar selection first
+        const waypointSelect = target.closest('[data-waypoint-id]');
+        if (waypointSelect) {
+        const waypointID = waypointSelect.getAttribute('data-waypoint-id');
+        if (waypointID) {
+            const [section, index] = waypointID.split('-').map(Number);
+            const waypoint = waypoints.find(
+                (wp) => wp.section === section && wp.index === index
+            );
+
+            if (waypoint) {
+                // If pause point, open pause modification behaviour
+                if (waypoint.coordinate.dir === 0) {
+                    changePause(waypoint);
+                    // console.log("pausing");
+                }
+                selectWaypoint(waypoint);
+                prevTarget = target;
+
+                return true;
+            }
+        }
+        }
+
+        // Then handle configuration work
+        const configInput = target.closest('input')
+        if (configInput) {
+            return true;
+        }
+
+        // get our map and canvas
+        const map = mapRef.current
+        const canvas = map?.canvasRef.current;
+        if (!canvas) return false;
+        // If click event happens on canvas,
+        if (target === canvas) {
+            const coord = coordinateEvent(e, canvas);
+
+            // if empty, skip selection check
+            if (waypoints.length === 0) {
+                return false;
+            }
+            
+            // handle closest waypoint
+            const closest = waypoints.reduce((prev, curr) => {
+                // repeated for edge effects
+                prev.selected = false;
+                curr.selected = false;
+                
+                // then compute closest
+                const prevDist = Math.sqrt((prev.coordinate.x - coord.x) ** 2 + (prev.coordinate.y - coord.y) ** 2);
+                const currDist = Math.sqrt((curr.coordinate.x - coord.x) ** 2 + (curr.coordinate.y - coord.y) ** 2);
+                return prevDist < currDist ? prev : curr;
+            });
+            if (Math.sqrt((closest.coordinate.x - coord.x) ** 2 + (closest.coordinate.y - coord.y) ** 2) < 25) {
+                // select logic
+                console.log("Closest waypoint selected");
+                selectWaypoint(closest);
+                closest.selected = true;
+                return true;
+            } 
+        }
+        return false;
+    }
+
     const handleClick = (e: MouseEvent) => {
+        const noSelection = !handleSelect(e);
         const map = mapRef.current;
         const canvas = map?.canvasRef.current;
         if (!canvas) return;
@@ -155,9 +242,8 @@ const useClickHandle = () => {
         if (rightFocused) return;
 
         // prepare focus for mouse event
-        unfocus();
-
-        const noSelection = !handleSelect(e);
+        if (noSelection) unfocus();
+        else setRightFocused(false);
 
         if (isWithin) {
             switch (e.button) {
@@ -212,14 +298,6 @@ const useClickHandle = () => {
                 {activeSubmenu && (
                     <div 
                         className="submenu" 
-                        style={{
-                            position: "absolute",
-                            top: 20,
-                            left: 100,
-                            background: "#101010",
-                            border: "1px solid #ccc",
-                            padding: "5px"
-                        }}
                         onMouseDown={(e) => e.stopPropagation()}
                     >
                         {activeSubmenu.map((subOption, subIdx) => (

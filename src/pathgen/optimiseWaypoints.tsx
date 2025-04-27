@@ -2,82 +2,125 @@ import { Waypoint, PathConfig } from '../types';
 
 const optimizeWaypoints = (waypoints: Waypoint[], config: PathConfig) => {
     if (waypoints.length < 2) return;
-  
-    // Process first waypoint
-    const first = waypoints[0];
-    const second = waypoints[1];
-    first.coordinate.head = Math.atan2(
-      second.coordinate.y - first.coordinate.y,
-      second.coordinate.x - first.coordinate.x
-    );
-    first.coordinate.vel = config.maxVelocity;
-  
-    // Process middle waypoints
-    for (let i = 1; i < waypoints.length - 1; i++) {
-      const prev = waypoints[i-1];
-      const curr = waypoints[i];
-      const next = waypoints[i+1];
-  
-      // Calculate entry and exit vectors
-      const entryVector = {
-        x: curr.coordinate.x - prev.coordinate.x,
-        y: curr.coordinate.y - prev.coordinate.y
-      };
-      const exitVector = {
-        x: next.coordinate.x - curr.coordinate.x,
-        y: next.coordinate.y - curr.coordinate.y
-      };
-  
-      // Calculate headings based on movement direction
-      const entryAngle = Math.atan2(entryVector.y, entryVector.x) + 
-        (prev.coordinate.dir === -1 ? Math.PI : 0);
-      const exitAngle = Math.atan2(exitVector.y, exitVector.x) + 
-        (curr.coordinate.dir === -1 ? Math.PI : 0);
-      
-      // Calculate heading based on movement directions
-      let heading;
-      if (curr.coordinate.dir === 0) {
-        // For pause points, face the exit direction
-        heading = exitAngle;
-      } else {
-        // Split the angle between entry and exit, considering directions
-        heading = (entryAngle + exitAngle) / 2;
-        if (Math.abs(exitAngle - entryAngle) > Math.PI) {
-          heading += Math.PI;
+
+    // First pass: Calculate headings and velocities for each waypoint
+    for (let i = 0; i < waypoints.length; i++) {
+        const curr = waypoints[i];
+        const prev = i > 0 ? waypoints[i-1] : null;
+        const next = i < waypoints.length - 1 ? waypoints[i+1] : null;
+        
+        // Calculate direct vectors
+        let inVector = prev ? {
+            x: curr.coordinate.x - prev.coordinate.x,
+            y: curr.coordinate.y - prev.coordinate.y,
+            dist: 0
+        } : null;
+
+        let outVector = next ? {
+            x: next.coordinate.x - curr.coordinate.x,
+            y: next.coordinate.y - curr.coordinate.y,
+            dist: 0
+        } : null;
+
+        // Calculate distances for scaling
+        if (inVector) {
+            inVector.dist = Math.sqrt(inVector.x * inVector.x + inVector.y * inVector.y);
+            if (inVector.dist > 0) {
+                inVector.x /= inVector.dist;
+                inVector.y /= inVector.dist;
+            }
         }
-      }
-      
-      // Normalize heading
-      while (heading > Math.PI) heading -= 2 * Math.PI;
-      while (heading < -Math.PI) heading += 2 * Math.PI;
-  
-      // Calculate velocity based on turn sharpness and direction changes
-      let velocity = config.maxVelocity;
-      const turnAngle = Math.abs(exitAngle - entryAngle);
-  
-      if (curr.coordinate.dir === 0) {
-        // Pause point
-        velocity = 0;
-      } else if (curr.coordinate.dir !== prev.coordinate.dir || curr.coordinate.dir !== next.coordinate.dir) {
-        // Direction change
-        velocity = 0;
-      } else {
-        // Adjust velocity for turn sharpness
-        velocity *= Math.exp(-config.turnK * turnAngle);
-      }
-  
-      curr.coordinate.head = heading;
-      curr.coordinate.vel = velocity;
+        if (outVector) {
+            outVector.dist = Math.sqrt(outVector.x * outVector.x + outVector.y * outVector.y);
+            if (outVector.dist > 0) {
+                outVector.x /= outVector.dist;
+                outVector.y /= outVector.dist;
+            }
+        }
+
+        // Calculate heading with tighter control
+        let heading: number;
+        if (!prev) {
+            // First point - align with exit direction
+            heading = Math.atan2(outVector!.y, outVector!.x);
+        } else if (!next) {
+            // Last point - align with entry direction
+            heading = Math.atan2(inVector!.y, inVector!.x);
+        } else {
+            // For middle points, use weighted average based on distances
+            const inAngle = Math.atan2(inVector!.y, inVector!.x);
+            const outAngle = Math.atan2(outVector!.y, outVector!.x);
+            
+            // Calculate angle difference
+            let angleDiff = outAngle - inAngle;
+            if (Math.abs(angleDiff) > Math.PI) {
+                angleDiff -= Math.sign(angleDiff) * 2 * Math.PI;
+            }
+
+            // Weight based on distances to prev/next points
+            const totalDist = inVector!.dist + outVector!.dist;
+            const inWeight = outVector!.dist / totalDist;
+            const outWeight = inVector!.dist / totalDist;
+            
+            // Weighted heading calculation
+            heading = inAngle + angleDiff * outWeight;
+        }
+
+        // Normalize heading
+        while (heading > Math.PI) heading -= 2 * Math.PI;
+        while (heading < -Math.PI) heading += 2 * Math.PI;
+
+        // Calculate velocity with more aggressive speed control
+        let velocity: number;
+        if (i === waypoints.length - 1) {
+            velocity = 0; // Final stop
+        } else {
+            const turnAngle = next ? Math.abs(heading - Math.atan2(outVector!.y, outVector!.x)) : 0;
+            
+            // Base velocity on turn sharpness and distance
+            velocity = config.maxVelocity;
+            
+            // Reduce speed more aggressively for turns
+            if (turnAngle > Math.PI / 6) { // 30 degrees
+                velocity *= Math.pow(Math.cos(turnAngle), 2);
+            }
+            
+            // Additional speed reduction near final point
+            if (i === waypoints.length - 2) {
+                // For second-to-last point, reduce speed but don't stop
+                velocity *= 0.5; // Slow down for final approach
+            }
+        }
+        
+        // Handle velocity for pause point and apply direction
+        if (curr.coordinate.dir === 0) {
+            velocity = 0;
+        } else {
+            // Apply direction sign to velocity
+            velocity *= curr.coordinate.dir;
+        }
+
+        // Update current waypoint properties
+        curr.coordinate.head = heading;
+        curr.coordinate.vel = velocity;
     }
-  
-    // Process last waypoint
-    const last = waypoints[waypoints.length - 1];
-    const secondLast = waypoints[waypoints.length - 2];
-    last.coordinate.head = Math.atan2(
-      last.coordinate.y - secondLast.coordinate.y,
-      last.coordinate.x - secondLast.coordinate.x
-    );
-    last.coordinate.vel = 0; // Always end at zero velocity
-  };
+
+    // Second pass: Handle special cases and transitions
+    for (let i = 0; i < waypoints.length; i++) {
+        const curr = waypoints[i];
+        const prev = i > 0 ? waypoints[i-1] : null;
+
+        // Handle final point - only set direction if not already set
+        if (i === waypoints.length - 1 && curr.coordinate.dir === undefined) {
+            curr.coordinate.dir = 0; // Stop at final point
+        }
+
+        // Handle transitions between waypoints - only modify if not explicitly set
+        if (prev && curr.coordinate.dir === 0 && prev.coordinate.dir === undefined) {
+            // If current point is a pause and previous direction not set, set to forward
+            prev.coordinate.dir = 1;
+        }
+    }
+};
 
 export default optimizeWaypoints;
